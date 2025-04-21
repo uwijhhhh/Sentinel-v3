@@ -1,12 +1,14 @@
 {
-  "name": "discord-superbot",
+  "name": "superbot",
   "version": "1.0.0",
+  "description": "Bot Discord avec système de tickets",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
   }
 }
