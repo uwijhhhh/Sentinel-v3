@@ -1,83 +1,111 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, PermissionsBitField, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const express = require('express');
+const { Client, GatewayIntentBits, Partials, ChannelType, PermissionsBitField, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, PermissionFlagsBits } = require('discord.js');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Bot en ligne !'));
+app.listen(PORT, () => console.log(`Serveur HTTP sur le port ${PORT}`));
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
   partials: [Partials.Channel]
 });
 
-// === CONFIGURATION MANUELLE ===
-const SUPPORT_ROLE_ID = '123456789012345678'; // à remplacer
-const TICKET_CATEGORY_ID = '123456789012345678'; // à remplacer
-
-client.on('ready', () => {
+client.once('ready', () => {
   console.log(`Connecté en tant que ${client.user.tag}`);
 });
 
-client.on('messageCreate', async (message) => {
-  if (!message.content.startsWith('!') || message.author.bot) return;
-  const args = message.content.slice(1).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+client.on('messageCreate', async message => {
+  if (!message.guild || message.author.bot) return;
 
-  if (command === 'config') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+  // Commande !config
+  if (message.content === '!config') {
+    const category = await message.guild.channels.create({
+      name: 'TICKETS',
+      type: ChannelType.GuildCategory,
+    });
 
-    const channel = await message.guild.channels.create({
-      name: 'ouvrir-un-ticket',
+    const ticketChannel = await message.guild.channels.create({
+      name: 'ouvrir-ticket',
       type: ChannelType.GuildText,
+      parent: category.id,
       permissionOverwrites: [
         {
           id: message.guild.id,
+          deny: [PermissionsBitField.Flags.SendMessages],
           allow: [PermissionsBitField.Flags.ViewChannel],
-          deny: [PermissionsBitField.Flags.SendMessages]
-        }
+        },
       ]
     });
 
-    const bouton = new ButtonBuilder()
-      .setCustomId('create_ticket')
-      .setLabel('🎫 Créer un ticket')
-      .setStyle(ButtonStyle.Primary);
+    const supportRole = await message.guild.roles.create({
+      name: 'Support',
+      color: 'Blue',
+      permissions: [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ManageChannels]
+    });
 
-    const row = new ActionRowBuilder().addComponents(bouton);
+    const embed = new EmbedBuilder()
+      .setTitle('Support')
+      .setDescription('Clique sur le bouton pour ouvrir un ticket.')
+      .setColor('Green');
 
-    await channel.send({ content: 'Besoin d\'aide ? Clique sur le bouton ci-dessous pour créer un ticket.', components: [row] });
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('create_ticket')
+        .setLabel('🎫 Créer un ticket')
+        .setStyle(ButtonStyle.Primary)
+    );
 
-    message.reply('Système de ticket configuré !');
+    ticketChannel.send({ embeds: [embed], components: [row] });
+
+    message.reply('Configuration terminée !');
   }
 });
 
-client.on('interactionCreate', async (interaction) => {
+// Gestion des boutons
+client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
 
-  if (interaction.customId === 'create_ticket') {
-    const ticketChannel = await interaction.guild.channels.create({
-      name: `ticket-${interaction.user.username}`,
+  const { guild, user, customId } = interaction;
+
+  if (customId === 'create_ticket') {
+    const existing = guild.channels.cache.find(c => c.name === `ticket-${user.username.toLowerCase()}`);
+    if (existing) return interaction.reply({ content: 'Tu as déjà un ticket ouvert.', ephemeral: true });
+
+    const supportRole = guild.roles.cache.find(r => r.name === 'Support');
+
+    const channel = await guild.channels.create({
+      name: `ticket-${user.username}`,
       type: ChannelType.GuildText,
-      parent: TICKET_CATEGORY_ID,
+      parent: interaction.channel.parentId,
       permissionOverwrites: [
-        {
-          id: interaction.guild.id,
-          deny: [PermissionFlagsBits.ViewChannel]
-        },
-        {
-          id: interaction.user.id,
-          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
-        },
-        {
-          id: SUPPORT_ROLE_ID,
-          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
-        }
+        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+        { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+        { id: supportRole.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
       ]
     });
 
-    ticketChannel.send(`Bonjour ${interaction.user}, un membre du support va bientôt vous répondre.`);
-    interaction.reply({ content: 'Ticket créé avec succès !', ephemeral: true });
+    const embed = new EmbedBuilder()
+      .setTitle('Ticket ouvert')
+      .setDescription('Explique ton problème, un membre du support te répondra.')
+      .setColor('Blue');
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setLabel('Fermer le ticket')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await channel.send({ content: `<@${user.id}> <@&${supportRole.id}>`, embeds: [embed], components: [row] });
+    await interaction.reply({ content: `Ticket créé: ${channel}`, ephemeral: true });
+  }
+
+  if (customId === 'close_ticket') {
+    const channel = interaction.channel;
+    await channel.send('Fermeture du ticket dans 5 secondes...');
+    setTimeout(() => channel.delete(), 5000);
   }
 });
 
