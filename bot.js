@@ -1,127 +1,22 @@
-const { Client, GatewayIntentBits, Partials, Collection, ChannelType, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const express = require('express');
-const dotenv = require('dotenv');
-dotenv.config();
+// bot.js require('dotenv').config(); const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, Collection } = require('discord.js'); const express = require('express');
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
-});
+const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildVoiceStates ] });
 
-client.commands = new Collection();
+const app = express(); app.get('/', (req, res) => res.send('Bot en ligne !')); app.listen(3000, () => console.log('Serveur HTTP prêt sur le port 3000'));
 
-const PREFIX = '!';
+client.commands = new Collection(); const commands = [];
 
-const supportRoleName = 'Support';
-const ticketCategoryName = 'TICKETS';
+// Générateur de commandes const categories = { utilisateurs: [ 'ban', 'unban', 'kick', 'mute', 'unmute', 'warn', 'infractions', 'strike', 'softban', 'tempban', 'tempkick', 'clearwarns', 'clearinfractions', 'clearstrikes', 'addnote', 'removenote', 'kickban', 'softunban', 'setnickname', 'setrole', 'removerole', 'voicekick', 'tempmute', 'freeze', 'unfreeze', 'addtrusted', 'removetrusted', 'temporarilyban', 'leveldown', 'kickvote', 'warnlevel', 'clearwarnlevel', 'setroles', 'blockuser', 'unblockuser', 'prolongmute', 'timemute' ], messages: [ 'clear', 'clearfrom', 'purge', 'nuke', 'delete', 'edit', 'editmessage', 'react', 'removeemoji', 'pin', 'unpin', 'spam', 'emojiinfo', 'splitmessage', 'sendmessage', 'deletemessages', 'movemessages', 'removeattachment', 'searchmessage', 'updatemessage', 'restoremessage', 'muteuser', 'purgerole', 'deleterolemessages', 'reactivate', 'gogreen', 'editreaction', 'customemoji', 'tempreact', 'removepin', 'setautopin' ], salons: [ 'createchannel', 'deletechannel', 'lockdown', 'unlock', 'settopic', 'setnsfw', 'setslowmode', 'setpermissions', 'resetpermissions', 'addreaction', 'delreaction', 'clearchannel', 'hidechannel', 'showchannel', 'editchannel', 'channelinfo', 'renamechannel', 'setcategory', 'setchannellimit', 'channelstats', 'lockcategory', 'unlockcategory', 'mutechannel', 'unmutechannel', 'channelprivacy', 'movechannel', 'autoassignchannel', 'setchannelname', 'setchanneltopic', 'addchanneltag', 'removetagchannel', 'setwelcomechannel', 'setgoodbyechannel', 'setannouncementchannel', 'setmodchannel' ], securite: [ 'antispam', 'antiphishing', 'antilink', 'antivulgar', 'antimassdm', 'antibot', 'antivirus', 'anticaps', 'antibadwords', 'antiflood', 'antivpn', 'antifake', 'antiscam', 'antidoxxing', 'antiallusers', 'botdetection', 'autoban', 'geoblocking', 'trustedroles', 'antirepeat', 'autobackup', 'encryption' ], roles: [ 'createrole', 'deleterole', 'setrolepermissions', 'addrole', 'removerole', 'listroles', 'roleinfo', 'assignrole', 'removefromrole', 'editrole', 'rolecolor', 'roleicon', 'rolehierarchy', 'rolefilter', 'clearroles', 'setroleicon', 'setrolename', 'addcustomrole', 'removecustomrole', 'rotatemoderators', 'rankup', 'rankdown', 'setleaderrole', 'resetrolepermissions', 'degradeuser' ], emojis: [ 'addemoji', 'removeemoji', 'listemojis', 'setemoji', 'removereaction', 'reactionrole', 'emojistats', 'setemojiicon', 'listemojiroles', 'emojistory', 'deleteemoji' ] };
 
-// Express HTTP server
-const app = express();
-const port = process.env.PORT || 3000;
-app.get('/', (req, res) => {
-  res.send('Bot en ligne.');
-});
-app.listen(port, () => {
-  console.log(`Serveur HTTP lancé sur http://localhost:${port}`);
-});
+// Génération dynamique for (const [cat, cmds] of Object.entries(categories)) { for (const name of cmds) { const cmd = new SlashCommandBuilder() .setName(name) .setDescription([${cat}] Commande ${name}); commands.push(cmd.toJSON()); client.commands.set(name, { data: cmd, execute: async interaction => { await interaction.reply(Commande \${name}` exécutée (catégorie: ${cat})`); } }); } }
 
-// CONFIG AUTO
-client.on('messageCreate', async message => {
-  if (message.content === '!config') {
-    const guild = message.guild;
+// Commande /help const helpCmd = new SlashCommandBuilder() .setName('help') .setDescription('Affiche la liste des commandes par catégorie'); commands.push(helpCmd.toJSON()); client.commands.set('help', { data: helpCmd, execute: async interaction => { let reply = 'Commandes disponibles :\n'; for (const [cat, cmds] of Object.entries(categories)) { reply += \n__${cat.toUpperCase()}__:\n; reply += cmds.map(c => \/${c}``).join(' ') + '\n'; } await interaction.reply({ content: reply, ephemeral: true }); } });
 
-    let supportRole = guild.roles.cache.find(r => r.name === supportRoleName);
-    if (!supportRole) {
-      supportRole = await guild.roles.create({
-        name: supportRoleName,
-        color: 'Blue',
-        reason: 'Rôle support auto-créé'
-      });
-    }
+// Commande /config const configCmd = new SlashCommandBuilder() .setName('config') .setDescription('Configure automatiquement les rôles, salons, permissions, etc.'); commands.push(configCmd.toJSON()); client.commands.set('config', { data: configCmd, execute: async interaction => { await interaction.reply('Configuration automatique en cours...'); // Ajoute ici la logique de création des rôles, salons, permissions... } });
 
-    let ticketCategory = guild.channels.cache.find(c => c.name === ticketCategoryName && c.type === ChannelType.GuildCategory);
-    if (!ticketCategory) {
-      ticketCategory = await guild.channels.create({
-        name: ticketCategoryName,
-        type: ChannelType.GuildCategory
-      });
-    }
+// Enregistrement des slash commands client.once('ready', async () => { const rest = new REST({ version: '10' }).setToken(process.env.TOKEN); try { await rest.put(Routes.applicationCommands(client.user.id), { body: commands }); console.log('Commandes enregistrées avec succès.'); } catch (err) { console.error('Erreur en enregistrant les commandes:', err); } console.log(${client.user.tag} prêt.); });
 
-    const ticketChannel = await guild.channels.create({
-      name: 'créer-un-ticket',
-      type: ChannelType.GuildText,
-      parent: ticketCategory.id,
-      permissionOverwrites: [
-        { id: guild.id, deny: [PermissionsBitField.Flags.SendMessages] },
-        { id: supportRole.id, allow: [PermissionsBitField.Flags.SendMessages] }
-      ]
-    });
+client.on('interactionCreate', async interaction => { if (!interaction.isChatInputCommand()) return; const command = client.commands.get(interaction.commandName); if (!command) return; try { await command.execute(interaction); } catch (err) { console.error(err); await interaction.reply({ content: 'Erreur lors de l’exécution de la commande.', ephemeral: true }); } });
 
-    const embed = new EmbedBuilder()
-      .setTitle('Besoin d\'aide ?')
-      .setDescription('Clique sur le bouton ci-dessous pour créer un ticket.')
-      .setColor('Blue');
-
-    const button = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('create_ticket')
-        .setLabel('🎫 Créer un ticket')
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await ticketChannel.send({ embeds: [embed], components: [button] });
-    message.reply('Configuration terminée.');
-  }
-});
-
-// Gestion des tickets
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isButton()) return;
-
-  if (interaction.customId === 'create_ticket') {
-    const guild = interaction.guild;
-    const user = interaction.user;
-
-    const ticketChannel = await guild.channels.create({
-      name: `ticket-${user.username}`,
-      type: ChannelType.GuildText,
-      parent: guild.channels.cache.find(c => c.name === ticketCategoryName && c.type === ChannelType.GuildCategory)?.id,
-      permissionOverwrites: [
-        { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: guild.roles.cache.find(r => r.name === supportRoleName)?.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] }
-      ]
-    });
-
-    const closeButton = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('close_ticket')
-        .setLabel('Fermer le ticket')
-        .setStyle(ButtonStyle.Danger)
-    );
-
-    ticketChannel.send({
-      content: `<@${user.id}> un membre du staff va vous répondre sous peu.`,
-      components: [closeButton]
-    });
-
-    interaction.reply({ content: 'Ticket créé.', ephemeral: true });
-  }
-
-  if (interaction.customId === 'close_ticket') {
-    const channel = interaction.channel;
-    await channel.send('Ticket fermé. Ce salon sera supprimé dans 5 secondes...');
-    setTimeout(() => {
-      channel.delete().catch(console.error);
-    }, 5000);
-  }
-});
-
-// Connexion du bot
 client.login(process.env.TOKEN);
+
